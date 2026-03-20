@@ -10,7 +10,7 @@
   },
   "plugins": [
     {
-      "name": "modern-go-pattern",
+      "name": "modern-patterns",
       "source": {
         "source": "url",
         "url": "https://github.com/ppzxc/go-skills.git"

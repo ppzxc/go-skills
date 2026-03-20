@@ -1,5 +1,5 @@
 ---
-name: modern-go-pattern
+name: modern-patterns
 description: "Use when writing, reviewing, or refactoring Go code in production services — error handling, concurrency, interfaces, testing, and resilience patterns."
 ---
 

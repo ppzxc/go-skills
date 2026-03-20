@@ -1,4 +1,4 @@
-# modern-go-pattern
+# modern-patterns
 
 Production-grade Go 패턴 레퍼런스 스킬입니다.
 
@@ -20,6 +20,6 @@ Production-grade Go 패턴 레퍼런스 스킬입니다.
 ## 설치
 
 ```bash
-/plugin marketplace add ppzxc/modern-go-pattern
-/plugin install modern-go-pattern@modern-go-pattern
+/plugin marketplace add ppzxc/modern-patterns
+/plugin install modern-patterns@modern-patterns
 ```
