@@ -1,25 +1,42 @@
-# modern-patterns
+# go-skills
 
-Production-grade Go 패턴 레퍼런스 스킬입니다.
+Claude Code 플러그인 마켓플레이스입니다. Production-grade Go 개발에 필요한 패턴과 베스트 프랙티스를 스킬로 제공합니다.
 
-*100 Go Mistakes*, *Learning Go 2nd Edition*, *Cloud Native Go* 세 권을 기반으로 작성되었습니다.
+## 포함된 플러그인
 
-## 포함 내용
-
-1. Error Handling — `%w` vs `%v`, `errors.Is/As`, sentinel/custom types
-2. Context — 전달 방법, timeout, value 사용 규칙
-3. Generics — 타입 제약, 함수 vs 메서드
-4. Concurrency — goroutine lifecycle, errgroup vs WaitGroup, mutex vs channel, leak 방지
-5. Interface Design — accept interfaces / return structs, 생성자 반환 타입 규칙
-6. Slice & Map — nil vs empty, 사전 할당, backing array aliasing
-7. Constructor & Config — functional options, config struct
-8. Testing — table-driven, t.Helper/Cleanup/Parallel, manual mock
-9. Resilience — retry backoff, graceful shutdown, circuit breaker
-10. Project Structure — cmd/internal/pkg, 패키지 네이밍
+| 플러그인 | 버전 | 설명 |
+|---------|------|------|
+| [modern-patterns](./plugins/modern-patterns) | 0.0.1 | Production-grade Go 패턴 — 에러 처리, 동시성, 인터페이스, 테스트, 복원력 |
 
 ## 설치
 
+### 1. 마켓플레이스 등록
+
 ```bash
-/plugin marketplace add ppzxc/modern-patterns
-/plugin install modern-patterns@modern-patterns
+/plugin marketplace add ppzxc/go-skills
 ```
+
+### 2. 플러그인 설치
+
+```bash
+/plugin install modern-patterns
+```
+
+## 프로젝트 구조
+
+```
+go-skills/
+├── .claude-plugin/
+│   └── marketplace.json        # 마켓플레이스 메타데이터
+└── plugins/
+    └── modern-patterns/        # Modern Go 패턴 플러그인
+        ├── .claude-plugin/
+        │   └── plugin.json
+        └── skills/
+            └── modern-patterns/
+                └── SKILL.md
+```
+
+## 저자
+
+**ppzxc** — [ppzxc.github.io](https://ppzxc.github.io)
