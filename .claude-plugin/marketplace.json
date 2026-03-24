@@ -12,8 +12,8 @@
   },
   "plugins": [
     {
-      "name": "go-coder",
-      "source": "./plugins/go-coder",
+      "name": "go-skills",
+      "source": "./plugins/go-skills",
       "description": "Production-grade Go patterns — error handling, concurrency, interfaces, testing, and resilience patterns",
       "version": "0.0.1"
     }
