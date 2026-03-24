@@ -1,6 +1,6 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
-  "name": "go-skills",
+  "name": "go-plugins",
   "owner": {
     "name": "ppzxc",
     "email": "cjh8487@naver.com",
@@ -12,9 +12,21 @@
   },
   "plugins": [
     {
-      "name": "go-skills",
-      "source": "./plugins/go-skills",
-      "description": "Production-grade Go patterns — error handling, concurrency, interfaces, testing, and resilience patterns",
+      "name": "go-coder",
+      "source": "./plugins/go-coder",
+      "description": "Production Go patterns — types, interfaces, error handling, concurrency, service design, resilience, and structured logging",
+      "version": "0.0.1"
+    },
+    {
+      "name": "go-reviewer",
+      "source": "./plugins/go-reviewer",
+      "description": "Go code review checklists — error handling, concurrency safety, naming, API design, performance, security",
+      "version": "0.0.1"
+    },
+    {
+      "name": "go-tester",
+      "source": "./plugins/go-tester",
+      "description": "Go testing patterns — table-driven, benchmarks, fuzzing, mocks, integration tests, race detection, coverage",
       "version": "0.0.1"
     }
   ]

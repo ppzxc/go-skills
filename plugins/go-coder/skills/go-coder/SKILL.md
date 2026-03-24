@@ -1,6 +1,6 @@
 ---
 name: go-coder
-description: "Use when writing, reviewing, or refactoring Go code in production services — error handling, concurrency, interfaces, testing, and resilience patterns."
+description: "Use when writing or refactoring Go production code — types, interfaces, error handling, concurrency, context, service structure, and resilience patterns."
 user_invocable: true
 ---
 
@@ -362,14 +362,7 @@ go func() { wg.Wait(); close(errCh) }()
 | Protecting shared state (map, counter, cache) | Transferring data ownership between goroutines |
 | Short critical sections | Signaling events, coordinating pipeline stages |
 
-### Data Race Detection — [Mistakes] #58
-
-Always run tests with `-race`. Races are undefined behavior — they cannot be safely ignored.
-
-```bash
-go test -race ./...
-go run -race main.go
-```
+> **Race detection** → See `/go-tester` Section 4. Always run `go test -race ./...`.
 
 ### Goroutine Leak Prevention — [Mistakes] #63
 
@@ -589,114 +582,95 @@ func NewServerFromConfig(cfg Config) *Server // alternative source
 func NewPool(cfg Config) (*Pool, error)
 ```
 
----
-
-## 6. Testing — [LearningGo] Ch.13, [Mistakes] #82-#84
-
-### Table-Driven Tests with t.Run
+### Structured Logging with slog — Go 1.21+
 
 ```go
-func TestParseUser(t *testing.T) {
-    tests := []struct {
-        name    string
-        input   string
-        want    *User
-        wantErr bool
-    }{
-        {"valid", `{"name":"alice"}`, &User{Name: "alice"}, false},
-        {"empty name", `{"name":""}`, nil, true},
-        {"invalid json", `{bad}`, nil, true},
+// Setup: create logger with handler
+log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+    Level: slog.LevelInfo,
+}))
+
+// Structured fields — key-value pairs
+log.Info("request completed",
+    "method", r.Method,
+    "path", r.URL.Path,
+    "status", 200,
+    "duration", time.Since(start),
+)
+
+// Group related fields
+log.With(slog.Group("user",
+    "id", userID,
+    "role", "admin",
+)).Info("user action", "action", "login")
+
+// Error level with error field
+log.Error("db query failed", "err", err, "query", "SELECT ...")
+```
+
+Inject logger via constructor — never use `slog.Default()` in library code.
+
+### Dependency Injection — Constructor Wiring
+
+Wire dependencies manually in `cmd/server/main.go`. No framework needed for most services.
+
+```go
+// cmd/server/main.go — the composition root
+func main() {
+    cfg := config.Load()
+    log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+    db, err := sql.Open("postgres", cfg.DSN)
+    if err != nil { log.Error("db connect", "err", err); os.Exit(1) }
+
+    // Wire dependencies bottom-up
+    userStore := postgres.NewUserStore(db)
+    userSvc := user.NewService(userStore, log)
+    userHandler := http.NewUserHandler(userSvc, log)
+
+    mux := http.NewServeMux()
+    userHandler.Register(mux)
+
+    srv := &http.Server{Addr: cfg.Addr, Handler: Logging(log)(mux)}
+    run(srv)
+}
+```
+
+**Rule:** Each layer only knows about the layer below it. `http.UserHandler` knows `user.Service` interface; it does not know `postgres.UserStore`.
+
+### Configuration Loading
+
+```go
+// internal/config/config.go
+type Config struct {
+    Addr    string        `env:"ADDR"       envDefault:":8080"`
+    DSN     string        `env:"DATABASE_URL,required"`
+    Timeout time.Duration `env:"TIMEOUT"    envDefault:"30s"`
+    Debug   bool          `env:"DEBUG"      envDefault:"false"`
+}
+
+func Load() Config {
+    var cfg Config
+    if err := env.Parse(&cfg); err != nil {
+        // Fatal at startup — config errors are programmer/ops errors
+        slog.Error("config error", "err", err)
+        os.Exit(1)
     }
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            got, err := ParseUser([]byte(tt.input))
-            if (err != nil) != tt.wantErr {
-                t.Fatalf("ParseUser() error = %v, wantErr %v", err, tt.wantErr)
-            }
-            if !reflect.DeepEqual(got, tt.want) {
-                t.Errorf("ParseUser() = %v, want %v", got, tt.want)
-            }
-        })
-    }
+    return cfg
 }
 ```
 
-### t.Helper() — [Mistakes] #82
+`go get github.com/caarlos0/env/v11`
 
-Call `t.Helper()` in every test helper. Without it, failure line points to the helper, not the test case.
-
-```go
-func assertNoError(t *testing.T, err error) {
-    t.Helper()  // failure now points to the caller, not this line
-    if err != nil { t.Fatalf("unexpected error: %v", err) }
-}
-```
-
-### t.Cleanup() — [Mistakes] #83
-
-Prefer `t.Cleanup()` over `defer` in tests. `defer` is skipped if `t.FailNow()` is called; `t.Cleanup()` always runs.
-
-```go
-func TestWithDB(t *testing.T) {
-    db := setupDB(t)
-    t.Cleanup(func() { db.Close() })  // always runs, even after t.Fatal
-    // ...
-}
-```
-
-### t.Parallel() — [Mistakes] #84
-
-```go
-for _, tt := range tests {
-    tt := tt  // capture range variable (required in Go < 1.22)
-    t.Run(tt.name, func(t *testing.T) {
-        t.Parallel()  // at the top, after t.Helper() if needed
-        // never share mutable state between parallel subtests
-    })
-}
-```
-
-### Manual Mock via Interface
-
-```go
-// Define interface in the package that needs it
-type UserStore interface {
-    FindByID(ctx context.Context, id string) (*User, error)
-}
-
-// Manual mock — no generator needed for simple cases
-type MockUserStore struct {
-    FindByIDFn func(ctx context.Context, id string) (*User, error)
-}
-func (m *MockUserStore) FindByID(ctx context.Context, id string) (*User, error) {
-    return m.FindByIDFn(ctx, id)
-}
-
-// In test
-store := &MockUserStore{
-    FindByIDFn: func(ctx context.Context, id string) (*User, error) {
-        return &User{ID: id, Name: "alice"}, nil
-    },
-}
-```
-
-### Benchmarks
-
-```go
-func BenchmarkParseUser(b *testing.B) {
-    data := []byte(`{"name":"alice","email":"alice@example.com"}`)
-    b.ResetTimer()      // exclude setup time
-    b.ReportAllocs()    // show allocations/op
-    for b.Loop() {      // Go 1.24+; use b.N in earlier versions
-        ParseUser(data)
-    }
-}
-// Run: go test -bench=. -benchmem ./...
-```
+**Validate at startup, not at use.** If a required env var is missing, fail fast with a clear message.
 
 ---
 
-## 7. Resilience — [CloudNative] Ch.5-8, [ConcurrencyInGo] Ch.5
+> **Testing patterns** → See `/go-tester` for table-driven tests, benchmarks, fuzzing, mocks, httptest, and coverage.
+
+---
+
+## 6. Resilience — [CloudNative] Ch.5-8, [ConcurrencyInGo] Ch.5
 
 ### Retry with Exponential Backoff + Jitter — [CloudNative] Ch.7
 
@@ -833,7 +807,7 @@ mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 8. Performance & Pitfalls — [Mistakes] #20-#29, #39, #47, #95-#97, [GoBook] Ch.3
+## 7. Performance & Pitfalls — [Mistakes] #20-#29, #39, #47, #95-#97, [GoBook] Ch.3
 
 ### Slice — [Mistakes] #20-#24
 
@@ -955,5 +929,7 @@ func compute() *Point { return &Point{X: 1, Y: 2} }  // heap-allocated (escapes)
 | JSON API returns empty list | `make([]T, 0)` | [Mistakes] #22 |
 | Unstable downstream service | Circuit breaker | [CloudNative] Ch.8 |
 | Transient failures | Retry + exponential backoff + jitter | [CloudNative] Ch.7 |
-| Detect data races | `go test -race ./...` | [Mistakes] #58 |
 | Repeated string concatenation | `strings.Builder` | [Mistakes] #39 |
+| Structured logging | `slog.New(slog.NewJSONHandler(...))` + inject via constructor | Go 1.21+ |
+| Wire dependencies | Constructor injection in `cmd/*/main.go` | [CloudNative] Ch.2 |
+| Load config from env | `env.Parse(&cfg)` at startup, fatal on error | — |
