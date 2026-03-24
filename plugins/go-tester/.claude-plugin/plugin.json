@@ -1,0 +1,10 @@
+{
+  "name": "go-tester",
+  "version": "0.0.1",
+  "description": "Go testing patterns — table-driven tests, benchmarks, fuzzing, mocks, integration tests, race detection, and coverage",
+  "author": {
+    "name": "ppzxc",
+    "email": "cjh8487@naver.com",
+    "url": "https://ppzxc.github.io"
+  }
+}
