@@ -587,21 +587,21 @@ func NewPool(cfg Config) (*Pool, error)
 ```go
 // Setup: create logger with handler
 log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-	Level: slog.LevelInfo,
+    Level: slog.LevelInfo,
 }))
 
 // Structured fields — key-value pairs
 log.Info("request completed",
-	"method", r.Method,
-	"path", r.URL.Path,
-	"status", 200,
-	"duration", time.Since(start),
+    "method", r.Method,
+    "path", r.URL.Path,
+    "status", 200,
+    "duration", time.Since(start),
 )
 
 // Group related fields
 log.With(slog.Group("user",
-	"id", userID,
-	"role", "admin",
+    "id", userID,
+    "role", "admin",
 )).Info("user action", "action", "login")
 
 // Error level with error field
@@ -617,22 +617,22 @@ Wire dependencies manually in `cmd/server/main.go`. No framework needed for most
 ```go
 // cmd/server/main.go — the composition root
 func main() {
-	cfg := config.Load()
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+    cfg := config.Load()
+    log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	db, err := sql.Open("postgres", cfg.DSN)
-	if err != nil { log.Error("db connect", "err", err); os.Exit(1) }
+    db, err := sql.Open("postgres", cfg.DSN)
+    if err != nil { log.Error("db connect", "err", err); os.Exit(1) }
 
-	// Wire dependencies bottom-up
-	userStore := postgres.NewUserStore(db)
-	userSvc := user.NewService(userStore, log)
-	userHandler := http.NewUserHandler(userSvc, log)
+    // Wire dependencies bottom-up
+    userStore := postgres.NewUserStore(db)
+    userSvc := user.NewService(userStore, log)
+    userHandler := http.NewUserHandler(userSvc, log)
 
-	mux := http.NewServeMux()
-	userHandler.Register(mux)
+    mux := http.NewServeMux()
+    userHandler.Register(mux)
 
-	srv := &http.Server{Addr: cfg.Addr, Handler: Logging(log)(mux)}
-	run(srv)
+    srv := &http.Server{Addr: cfg.Addr, Handler: Logging(log)(mux)}
+    run(srv)
 }
 ```
 
@@ -643,20 +643,20 @@ func main() {
 ```go
 // internal/config/config.go
 type Config struct {
-	Addr    string        `env:"ADDR"       envDefault:":8080"`
-	DSN     string        `env:"DATABASE_URL,required"`
-	Timeout time.Duration `env:"TIMEOUT"    envDefault:"30s"`
-	Debug   bool          `env:"DEBUG"      envDefault:"false"`
+    Addr    string        `env:"ADDR"       envDefault:":8080"`
+    DSN     string        `env:"DATABASE_URL,required"`
+    Timeout time.Duration `env:"TIMEOUT"    envDefault:"30s"`
+    Debug   bool          `env:"DEBUG"      envDefault:"false"`
 }
 
 func Load() Config {
-	var cfg Config
-	if err := env.Parse(&cfg); err != nil {
-		// Fatal at startup — config errors are programmer/ops errors
-		slog.Error("config error", "err", err)
-		os.Exit(1)
-	}
-	return cfg
+    var cfg Config
+    if err := env.Parse(&cfg); err != nil {
+        // Fatal at startup — config errors are programmer/ops errors
+        slog.Error("config error", "err", err)
+        os.Exit(1)
+    }
+    return cfg
 }
 ```
 
@@ -670,7 +670,7 @@ func Load() Config {
 
 ---
 
-## 7. Resilience — [CloudNative] Ch.5-8, [ConcurrencyInGo] Ch.5
+## 6. Resilience — [CloudNative] Ch.5-8, [ConcurrencyInGo] Ch.5
 
 ### Retry with Exponential Backoff + Jitter — [CloudNative] Ch.7
 
@@ -807,7 +807,7 @@ mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## 8. Performance & Pitfalls — [Mistakes] #20-#29, #39, #47, #95-#97, [GoBook] Ch.3
+## 7. Performance & Pitfalls — [Mistakes] #20-#29, #39, #47, #95-#97, [GoBook] Ch.3
 
 ### Slice — [Mistakes] #20-#24
 
