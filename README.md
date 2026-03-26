@@ -1,4 +1,4 @@
-# go-plugins
+# golang-plugins
 
 A Claude Code plugin marketplace providing production-grade Go patterns and best practices as skills.
 
@@ -6,42 +6,44 @@ A Claude Code plugin marketplace providing production-grade Go patterns and best
 
 | Plugin | Version | Description |
 |--------|---------|-------------|
-| [go-coder](./plugins/go-coder) | 0.0.1 | Production Go patterns — types, interfaces, error handling, concurrency, service design, resilience |
-| [go-reviewer](./plugins/go-reviewer) | 0.0.1 | Code review checklists — error handling, concurrency safety, naming, API design, performance, security |
-| [go-tester](./plugins/go-tester) | 0.0.1 | Testing patterns — table-driven, benchmarks, fuzzing, mocks, integration tests, coverage |
+| [golang](./plugins/golang) | 0.0.1 | Production-grade Go patterns — coding, reviewing, and testing skills |
 
 ## Installation
 
 ### 1. Add marketplace
 
 ```bash
-/plugin marketplace add ppzxc/go-plugins
+/plugin marketplace add ppzxc/golang-plugins
 ```
 
-### 2. Install plugins
+### 2. Install plugin
 
 ```bash
-/plugin install go-coder    # writing production Go code
-/plugin install go-reviewer # reviewing Go code
-/plugin install go-tester   # writing Go tests
+/plugin install golang
+```
+
+## Usage
+
+```
+/golang:coder    # writing or refactoring Go production code
+/golang:reviewer # reviewing Go code in pull requests
+/golang:tester   # writing or improving Go tests
 ```
 
 ## Project Structure
 
 ```
-go-plugins/
+golang-plugins/
 ├── .claude-plugin/
 │   └── marketplace.json        # Marketplace metadata
 └── plugins/
-    ├── go-coder/               # Production Go patterns
-    │   ├── .claude-plugin/plugin.json
-    │   └── skills/go-coder/SKILL.md
-    ├── go-reviewer/            # Code review checklists
-    │   ├── .claude-plugin/plugin.json
-    │   └── skills/go-reviewer/SKILL.md
-    └── go-tester/              # Testing patterns
+    └── golang/                 # Go skills plugin
         ├── .claude-plugin/plugin.json
-        └── skills/go-tester/SKILL.md
+        ├── README.md
+        └── skills/
+            ├── coder/SKILL.md
+            ├── reviewer/SKILL.md
+            └── tester/SKILL.md
 ```
 
 ## Author
