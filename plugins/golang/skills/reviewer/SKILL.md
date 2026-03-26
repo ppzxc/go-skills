@@ -22,7 +22,7 @@ CHECK/FLAG review checklist for production Go. Every rule cites a canonical sour
 
 ### FLAG (code smells to raise)
 
-- **[SHOULD] Flag errors.New inside loops**: Allocates a new error value every iteration [Mistakes#48]
+- **[MAY] Flag errors.New inside loops**: Allocates a new error value every iteration; only relevant in hot paths [Mistakes#48]
   ```go
   // BAD — allocates on every iteration
   for _, v := range items {

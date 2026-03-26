@@ -2,11 +2,15 @@
 
 A production-grade Go patterns plugin for Claude Code, providing three skills for writing, reviewing, and testing Go code.
 
-Based on three canonical books:
+Based on canonical Go sources:
 
 - *100 Go Mistakes and How to Avoid Them* (Teiva Harsanyi)
+- *The Go Programming Language* (Donovan & Kernighan)
+- *Concurrency in Go* (Cox-Buday)
 - *Learning Go, 2nd Edition* (Jon Bodner)
 - *Cloud Native Go* (Matthew Titmus)
+- *Let's Go / Let's Go Further* (Alex Edwards)
+- *Effective Go* and *Go Code Review Comments* (Go Team)
 
 ## Skills
 

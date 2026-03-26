@@ -2,11 +2,15 @@
 
 Claude Code용 Production-grade Go 패턴 플러그인입니다. Go 코드 작성, 리뷰, 테스트를 위한 세 가지 스킬을 제공합니다.
 
-다음 세 권의 책을 기반으로 작성되었습니다:
+다음 Go 정규 소스를 기반으로 작성되었습니다:
 
 - *100 Go Mistakes and How to Avoid Them* (Teiva Harsanyi)
+- *The Go Programming Language* (Donovan & Kernighan)
+- *Concurrency in Go* (Cox-Buday)
 - *Learning Go, 2nd Edition* (Jon Bodner)
 - *Cloud Native Go* (Matthew Titmus)
+- *Let's Go / Let's Go Further* (Alex Edwards)
+- *Effective Go* 및 *Go Code Review Comments* (Go Team)
 
 ## 스킬
 

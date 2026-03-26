@@ -65,7 +65,7 @@ Rule-based reference for production Go code. Every rule cites a canonical source
   )
   ```
 
-- **[SHOULD] Use go:embed for static assets**: Embed files at compile time instead of runtime I/O [EffectiveGo]
+- **[SHOULD] Use go:embed for static assets**: Embed files at compile time instead of runtime I/O [GoBook§10] [Go 1.16+]
   ```go
   import _ "embed"
 
@@ -621,7 +621,7 @@ Rule-based reference for production Go code. Every rule cites a canonical source
 
 ### DO
 
-- **[SHOULD] Exponential backoff with jitter for retries**: Prevent thundering herd on failures [CloudNative§7]
+- **[SHOULD] Exponential backoff with jitter for retries**: Prevent thundering herd on failures [CloudNative§7] [Go 1.22+]
   ```go
   func Retry(ctx context.Context, max int, fn func() error) error {
       for i := range max {
