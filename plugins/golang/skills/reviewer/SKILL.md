@@ -1,203 +1,520 @@
 ---
 name: reviewer
-description: "Use when reviewing Go code in pull requests or auditing Go codebases — checklists for error handling, concurrency safety, naming conventions, API design, and performance pitfalls."
+description: "Use when reviewing Go code in pull requests or auditing Go codebases — checklists for error handling, concurrency safety, naming conventions, API design, performance pitfalls, security, and package structure."
 user_invocable: true
 ---
 
 # Go Reviewer
 
-Code review checklists for production Go. Each item is a yes/no question — flag it if the answer is "no" and there's no clear reason.
+CHECK/FLAG review checklist for production Go. Every rule cites a canonical source.
 
-Sources: [Go CodeReviewComments](https://go.dev/wiki/CodeReviewComments), [go-concurrency checklist](https://github.com/code-review-checklists/go-concurrency), [Mistakes] #48-#73, [CloudNative].
-
-> See also: `/golang:coder` for full pattern explanations. `/golang:tester` for test review patterns.
+**Sources:** [GoBook] The Go Programming Language, [Mistakes] 100 Go Mistakes and How to Avoid Them, [Concurrency] Concurrency in Go, [LearningGo] Learning Go 2nd Ed, [CloudNative] Cloud Native Go, [LetsGo] Let's Go / Let's Go Further, [EffectiveGo] Effective Go, [CodeReview] Go Code Review Comments
 
 ---
 
-## 1. Go Official Style — [go.dev/wiki/CodeReviewComments](https://go.dev/wiki/CodeReviewComments)
+## Section 1: Error Handling Review
 
-### Naming
-- [ ] Receiver names: 1-2 letter abbreviation of type name? (`r *Request`, not `this`/`self`)
-- [ ] No underscores in Go names? (`MixedCaps` only, except test functions and generated code)
-- [ ] Package name: lowercase, singular, no stutter? (`user.Record` not `user.UserRecord`)
-- [ ] Acronyms consistent? (`userID`/`UserID` not `userId`/`UserId`)
+### CHECK (things that must be present/correct)
 
-### Error Strings
-- [ ] Error strings lowercase and no trailing punctuation? (`"invalid input"` not `"Invalid input."`)
-  - Reason: error strings are composed — `fmt.Errorf("parse %s: %w", ...)` starts a sentence mid-string.
-
-### Code Style
-- [ ] Error flow first, happy path un-indented?
+- **Verify every error return is checked**: No unhandled error values from function calls [Mistakes#48]
   ```go
-  // DO
-  if err != nil { return err }
-  doWork()
-  // DON'T
-  if err == nil { doWork() }
-  ```
-- [ ] No `_ = err` (discarding errors without handling)?
-- [ ] All exported symbols have doc comments? (`// FunctionName does X`)
-- [ ] Import groups: stdlib / external / internal, separated by blank lines?
-- [ ] No blank import (`_ "pkg"`) without an explanatory comment?
-
----
-
-## 2. Error Handling Review — [Mistakes] #48-#53
-
-- [ ] Every `fmt.Errorf` uses `%w` OR there's a deliberate reason to use `%v`?
-  - `%w` preserves chain; `%v` breaks it — callers cannot `errors.Is`/`errors.As` upstream.
-- [ ] `errors.Is`/`errors.As` can reach the target through the chain?
-  - If wrapped with `%v`, `errors.Is(err, ErrNotFound)` silently returns false.
-- [ ] No errors silently discarded? (`if err != nil { _ = err }` or empty catch block)
-- [ ] `panic` only for programmer bugs (nil callback, broken invariant), not I/O or user errors?
-- [ ] `errors.Join` used for combining multiple independent validation errors (Go 1.20+)?
-- [ ] Goroutines collecting errors via `errgroup` or buffered `chan error`? (not fire-and-forget)
-
----
-
-## 3. Context Review — [Mistakes] #60-#63
-
-- [ ] `ctx context.Context` is the first parameter in every function that does I/O?
-- [ ] `defer cancel()` immediately follows every `WithCancel`/`WithTimeout`/`WithDeadline`?
-  - Missing cancel leaks the context until parent is cancelled.
-- [ ] No `context.Context` stored in a struct field?
-  - Struct context prevents per-call cancellation and makes lifetime ambiguous.
-- [ ] Context values use unexported key types (not `string`, `int`)?
-  - String keys from different packages can collide silently.
-- [ ] Context values are request-scoped only (trace IDs, auth tokens)?
-  - Not optional function parameters — use explicit function args for those.
-- [ ] Long loops check `ctx.Done()` or `ctx.Err()` before each iteration?
-
----
-
-## 4. Concurrency Safety Review — [Mistakes] #57-#73, [go-concurrency checklist](https://github.com/code-review-checklists/go-concurrency)
-
-### Goroutine Lifecycle
-- [ ] Every goroutine has a known exit condition? (context, channel close, or explicit signal)
-- [ ] The function that starts a goroutine owns its termination?
-
-### Shared State
-- [ ] All accesses to shared mutable state protected by `sync.Mutex` or `sync.RWMutex`?
-- [ ] HTTP handlers are goroutine-safe? (no unprotected package-level state)
-- [ ] `sync.Map.Store`/`Load` pairs replaced with `LoadOrStore` where atomicity is needed?
-- [ ] Methods returning pointers to mutex-protected struct fields avoided?
-  ```go
-  // WRONG: caller can mutate without holding lock
-  func (s *Store) GetUser() *User { return s.user }
-  // RIGHT: return a copy
-  func (s *Store) GetUser() User { s.mu.Lock(); defer s.mu.Unlock(); return *s.user }
-  ```
-
-### Channels
-- [ ] Channel capacity is justified by comment? (unbuffered, 1, or N — each has different semantics)
-- [ ] No goroutines blocked on unbuffered channel send with no guaranteed reader?
-- [ ] Loop variables captured by value before spawning goroutines? (required in Go < 1.22)
-  ```go
-  for _, v := range items {
-      v := v // capture — remove in Go 1.22+
-      go func() { use(v) }()
+  // GOOD
+  f, err := os.Open(path)
+  if err != nil {
+      return fmt.Errorf("open config: %w", err)
   }
   ```
 
-### Sync Primitives
-- [ ] `sync.RWMutex` used for read-heavy, write-rarely workloads? (not always faster — benchmark)
-- [ ] `sync.Once` used for one-time initialization instead of `init()`?
-
-> See also: `/golang:tester` Section 4 for running `go test -race ./...` to detect races automatically.
-
----
-
-## 5. Interface & API Design Review — [Mistakes] #5-#8, [LearningGo] Ch.7
-
-- [ ] Interfaces defined at the consumer side, not the producer side?
-  - If `FooService` defines its own `FooServiceInterface` in the same package, it's likely producer-side.
-- [ ] Interface has ≤3 methods? (larger interfaces reduce substitutability)
-- [ ] No stutter in exported names? (`user.UserStore` → `user.Store`)
-- [ ] Exported surface area minimal? (unexported what doesn't need to be public)
-- [ ] Constructors with many optional parameters use functional options? (forward-compatible)
-- [ ] Constructor returns concrete type (not interface) unless multiple implementations exist?
-- [ ] Compile-time interface check present for critical implementations?
+- **Verify errors are wrapped with context**: Bare returns lose call-site information [Mistakes#49]
   ```go
-  var _ io.Writer = (*MyWriter)(nil)
+  // GOOD
+  row, err := db.QueryRow(ctx, query, id)
+  if err != nil {
+      return fmt.Errorf("get user %d: %w", id, err)
+  }
   ```
-- [ ] Functions accept interfaces, return concrete structs?
+
+- **Verify consistent wrapping strategy (%w vs %v)**: Use %w to preserve the chain, %v only to intentionally break it [Mistakes#50]
+  ```go
+  // GOOD — deliberate choice documented
+  return fmt.Errorf("validate input: %w", err)   // callers can errors.Is
+  return fmt.Errorf("internal: %v", err)          // hide implementation detail
+  ```
+
+- **Verify sentinel errors are package-level vars**: Sentinels declared inside functions are unreachable to callers [LearningGo#9]
+  ```go
+  // GOOD
+  var ErrNotFound = errors.New("not found")
+  var ErrConflict = errors.New("conflict")
+  ```
+
+- **Verify error messages are lowercase with no punctuation**: Error strings compose inside wrapping chains [CodeReview]
+  ```go
+  // GOOD
+  errors.New("connection refused")
+  fmt.Errorf("parse config: %w", err)
+  ```
+
+### FLAG (code smells to raise)
+
+- **Flag errors.New inside loops**: Allocates a new error value every iteration [Mistakes#48]
+  ```go
+  // BAD — allocates on every iteration
+  for _, v := range items {
+      if v < 0 { return errors.New("negative value") }
+  }
+  ```
+
+- **Flag panic in library code**: Libraries must return errors, not crash the caller [EffectiveGo]
+  ```go
+  // BAD — library function should not panic
+  func Parse(data []byte) Config {
+      if len(data) == 0 { panic("empty data") }
+  }
+  ```
+
+- **Flag logging AND returning the same error**: Produces duplicate noise in logs [Mistakes#49]
+  ```go
+  // BAD — caller will also log the returned error
+  if err != nil {
+      log.Printf("failed: %v", err)
+      return fmt.Errorf("operation failed: %w", err)
+  }
+  ```
+
+- **Flag ignoring deferred Close() errors**: Write-path Close can fail and lose data [Mistakes#50]
+  ```go
+  // BAD — file write may be incomplete
+  defer f.Close()
+  // GOOD — check error on write path
+  defer func() { closeErr = f.Close() }()
+  ```
+
+> Cross-ref: See `/golang:coder` Section 3 for full error handling patterns.
 
 ---
 
-## 6. Service Structure Review — [CloudNative] Ch.2, [GoBook] Ch.10
+## Section 2: Concurrency Safety
 
-- [ ] `internal/` used for packages not intended for external use?
-- [ ] `cmd/` contains only wiring and startup — business logic in `internal/`?
-- [ ] No circular dependencies between packages?
-- [ ] No global mutable state (package-level `var` that handlers read/write)?
-  - Exception: `sync.Once`-initialized read-only singletons are fine.
-- [ ] Package names: lowercase, singular, no underscores, no stutter?
-- [ ] Middleware uses standard `func(http.Handler) http.Handler` signature?
-- [ ] Dependencies injected via constructor, not fetched globally in methods?
-- [ ] No `src/` directory? (Java convention — confusing in Go)
+### CHECK (things that must be present/correct)
+
+- **Verify every goroutine has an exit path**: Context cancellation, channel close, or explicit signal [Concurrency#4]
+  ```go
+  // GOOD — goroutine exits when ctx is cancelled
+  go func() {
+      for { select { case <-ctx.Done(): return
+          case msg := <-ch: process(msg) } }
+  }()
+  ```
+
+- **Verify shared state has synchronization**: Every read/write to shared mutable data protected [Mistakes#58]
+  ```go
+  // GOOD
+  var mu sync.Mutex
+  mu.Lock()
+  counter++
+  mu.Unlock()
+  ```
+
+- **Verify WaitGroup.Add is called before goroutine launch**: Add inside goroutine races with Wait [Concurrency#3]
+  ```go
+  // GOOD
+  var wg sync.WaitGroup
+  wg.Add(len(items))
+  for _, item := range items {
+      go func(it Item) { defer wg.Done(); process(it) }(item)
+  }
+  wg.Wait()
+  ```
+
+- **Verify defer mu.Unlock() immediately after Lock()**: Gap between Lock and defer risks missing unlock on panic [Mistakes#69]
+  ```go
+  // GOOD
+  mu.Lock()
+  defer mu.Unlock()
+  return shared.value
+  ```
+
+- **Verify channel direction in function parameters**: Restrict to send-only or receive-only where possible [GoBook#8]
+  ```go
+  // GOOD — direction enforced by compiler
+  func produce(out chan<- int) { out <- 42 }
+  func consume(in <-chan int)  { v := <-in }
+  ```
+
+### FLAG (code smells to raise)
+
+- **Flag unbuffered channel without guaranteed receiver**: Sender blocks forever if no goroutine reads [Concurrency#3]
+  ```go
+  // BAD — if nobody reads ch, this goroutine leaks
+  ch := make(chan int)
+  go func() { ch <- expensiveCalc() }()
+  ```
+
+- **Flag sync primitives copied by value**: Copying a mutex or WaitGroup breaks internal state [Mistakes#73]
+  ```go
+  // BAD — mu is copied, lock is meaningless
+  type Cache struct{ mu sync.Mutex; data map[string]string }
+  func (c Cache) Get(k string) string { c.mu.Lock(); defer c.mu.Unlock(); return c.data[k] }
+  // Use pointer receiver: func (c *Cache) Get(...)
+  ```
+
+- **Flag closure capturing loop variable in goroutine**: Variable is shared across iterations in Go < 1.22 [Mistakes#63]
+  ```go
+  // BAD — all goroutines see last value of v (Go < 1.22)
+  for _, v := range items {
+      go func() { process(v) }()
+  }
+  ```
+
+- **Flag mixing mutex and channel for same data**: Pick one synchronization mechanism per data path [Concurrency#4]
+  ```go
+  // BAD — two mechanisms guarding the same counter
+  mu.Lock()
+  counter++
+  mu.Unlock()
+  ch <- counter // also sending through channel
+  ```
+
+- **Flag blocking goroutine without select on context**: Goroutine cannot be cancelled [Concurrency#5]
+  ```go
+  // BAD — no way to cancel this goroutine
+  go func() {
+      result := <-longRunningCh
+      process(result)
+  }()
+  ```
+
+- **Flag goroutine launched without clear ownership**: Caller must know who stops it [Concurrency#4]
+  ```go
+  // BAD — fire and forget, no shutdown mechanism
+  func StartProcessor() {
+      go func() { for { processNext() } }()
+  }
+  ```
+
+> Cross-ref: See `/golang:tester` Section 8 for race detection testing patterns.
 
 ---
 
-## 7. Resilience Review — [CloudNative] Ch.5-8
+## Section 3: Naming & Style
 
-- [ ] Retry logic includes **both** exponential backoff **and** jitter?
-  - Backoff without jitter causes thundering herd.
-- [ ] Circuit breaker applied to all external service calls?
-- [ ] Graceful shutdown handles `SIGINT`/`SIGTERM` with a timeout?
-- [ ] In-flight requests given time to complete before shutdown? (`srv.Shutdown` not `srv.Close`)
-- [ ] Rate limiting applied to public endpoints?
-- [ ] `/healthz` (liveness) and `/readyz` (readiness) endpoints implemented?
-  - Readiness checks downstream dependencies (DB, cache); liveness does not.
+### CHECK (things that must be present/correct)
+
+- **Verify MixedCaps with no underscores**: Go convention is MixedCaps or mixedCaps, never snake_case [CodeReview]
+  ```go
+  // GOOD
+  type UserAccount struct{}
+  var maxRetryCount int
+  func parseRequestBody() {}
+  ```
+
+- **Verify short names for narrow scope**: Single-letter or abbreviated names for local variables with small scope [EffectiveGo]
+  ```go
+  // GOOD — short scope, short name
+  for i, v := range items { use(i, v) }
+  func (s *Server) handleReq(w http.ResponseWriter, r *http.Request) {}
+  ```
+
+- **Verify acronyms are all-caps**: HTTP, URL, ID, API, SQL — not Http, Url, Id [CodeReview]
+  ```go
+  // GOOD
+  type HTTPClient struct{}
+  var userID int
+  func ServeHTTP(w http.ResponseWriter, r *http.Request) {}
+  ```
+
+- **Verify package names are lowercase single words**: No underscores, no mixedCaps in package names [EffectiveGo]
+  ```go
+  // GOOD
+  package user
+  package httputil
+  package testhelper
+  ```
+
+- **Verify single-method interfaces use -er suffix**: Reader, Writer, Closer, Formatter [EffectiveGo]
+  ```go
+  // GOOD
+  type Validator interface { Validate() error }
+  type Renderer interface  { Render(w io.Writer) error }
+  ```
+
+- **Verify exported names have doc comments**: Every exported type, function, const, var needs a comment [CodeReview]
+  ```go
+  // GOOD
+  // UserStore persists user records to the database.
+  type UserStore struct{}
+
+  // ErrNotFound is returned when the requested resource does not exist.
+  var ErrNotFound = errors.New("not found")
+  ```
+
+### FLAG (code smells to raise)
+
+- **Flag name stuttering**: Package name should not repeat in exported identifiers [CodeReview]
+  ```go
+  // BAD — callers write http.HTTPServer
+  package http
+  type HTTPServer struct{}
+  // GOOD — callers write http.Server
+  type Server struct{}
+  ```
 
 ---
 
-## 8. Performance Review — [Mistakes] #20-#29, #39, #47, #95-#97
+## Section 4: API Design
 
-### Slice & Map
-- [ ] `make([]T, 0, cap)` used when final size is known?
-- [ ] `append` result always assigned back? (`s = append(s, item)` not `append(s, item)`)
-- [ ] Sub-slice (`orig[a:b]`) does not outlive the backing array unexpectedly?
-- [ ] No write to nil map? (`var m map[string]int; m["k"] = 1` panics)
-- [ ] JSON API responses use `make([]T, 0)` not `var s []T` for empty lists?
-  - `nil` slice marshals to `null`; empty slice marshals to `[]`.
+### CHECK (things that must be present/correct)
 
-### Strings
-- [ ] No string concatenation with `+` in a loop? (`strings.Builder` is O(n), `+` is O(n²))
+- **Verify interfaces are defined at consumer side**: Consumer declares what it needs, not producer [Mistakes#5]
+  ```go
+  // GOOD — handler package defines only what it needs
+  package handler
+  type UserFinder interface { FindByID(ctx context.Context, id int) (User, error) }
+  ```
 
-### defer
-- [ ] No `defer` inside a loop? (defers stack until function returns, not loop iteration)
-  - Wrap in an inner function: `for _, f := range files { func() { defer f.Close(); ... }() }`
+- **Verify functions accept interfaces, return structs**: Accept narrow behavior, return concrete types [EffectiveGo]
+  ```go
+  // GOOD
+  func NewLogger(w io.Writer) *Logger {
+      return &Logger{out: w}
+  }
+  ```
 
-### Memory
-- [ ] Sub-slice returned from function copies data if the original is large?
-- [ ] No goroutines blocked forever (potential goroutine leak)?
+- **Verify functional options pattern for 3+ optional params**: Forward-compatible, self-documenting [Mistakes#11]
+  ```go
+  // GOOD
+  type Option func(*Server)
+  func WithPort(p int) Option  { return func(s *Server) { s.port = p } }
+  func WithTLS(cfg *tls.Config) Option { return func(s *Server) { s.tls = cfg } }
+  func NewServer(opts ...Option) *Server { s := &Server{}; for _, o := range opts { o(s) }; return s }
+  ```
 
-> See also: `/golang:tester` Section 5 for benchmarking to measure actual impact.
+- **Verify context.Context is the first parameter**: Standard convention for all I/O-bound functions [CodeReview]
+  ```go
+  // GOOD
+  func (s *Store) GetUser(ctx context.Context, id int) (User, error) {
+      return s.db.QueryRow(ctx, query, id)
+  }
+  ```
+
+- **Verify error is the last return value**: Callers expect error in the final position [CodeReview]
+  ```go
+  // GOOD
+  func ReadConfig(path string) (Config, error) {
+      data, err := os.ReadFile(path)
+      return parseConfig(data), err
+  }
+  ```
+
+### FLAG (code smells to raise)
+
+- **Flag interface with 5+ methods**: Large interfaces reduce substitutability and testability [Mistakes#5]
+  ```go
+  // BAD — too many methods, hard to mock
+  type UserService interface {
+      Create(ctx context.Context, u User) error
+      Update(ctx context.Context, u User) error
+      Delete(ctx context.Context, id int) error
+      Get(ctx context.Context, id int) (User, error)
+      List(ctx context.Context) ([]User, error)
+      Search(ctx context.Context, q string) ([]User, error)
+  }
+  ```
+
+- **Flag exported interface with single implementation**: Premature abstraction, test with concrete type instead [Mistakes#6]
+  ```go
+  // BAD — only one implementation exists, interface adds indirection
+  type Notifier interface { Send(msg string) error }
+  type EmailNotifier struct{}
+  func (e *EmailNotifier) Send(msg string) error { /* ... */ }
+  ```
+
+> Cross-ref: See `/golang:coder` Section 2 for full interface and API patterns.
 
 ---
 
-## 9. Security Review
+## Section 5: Performance Pitfalls
 
-- [ ] No SQL queries built with string concatenation or `fmt.Sprintf`? (use parameterized queries)
-- [ ] No user input rendered directly into HTML templates without escaping? (use `html/template`, not `text/template`)
-- [ ] Secret comparison uses `subtle.ConstantTimeCompare`, not `==`? (prevents timing attacks)
-- [ ] TLS configured with minimum version `tls.VersionTLS12`?
-- [ ] No sensitive data (passwords, tokens) logged?
-- [ ] File paths from user input validated/sanitized? (path traversal risk)
-- [ ] External URLs fetched only from an allowlist? (SSRF risk if user controls the URL)
+### FLAG (code smells to raise)
+
+- **Flag string concatenation in loops**: Use strings.Builder for O(n) instead of O(n²) [Mistakes#39]
+  ```go
+  // BAD — quadratic allocation
+  var s string
+  for _, v := range items {
+      s += v.String()
+  }
+  // GOOD: var b strings.Builder; for _, v := range items { b.WriteString(v.String()) }
+  ```
+
+- **Flag slice append without pre-allocation**: Known-size slices should use make with capacity [Mistakes#21]
+  ```go
+  // BAD — repeated reallocation
+  var result []User
+  for _, row := range rows {
+      result = append(result, toUser(row))
+  }
+  // GOOD: result := make([]User, 0, len(rows))
+  ```
+
+- **Flag map without size hint**: Large maps benefit from initial capacity [Mistakes#27]
+  ```go
+  // BAD — grows incrementally, triggers rehashing
+  m := make(map[string]int)
+  for _, item := range thousandItems {
+      m[item.Key] = item.Value
+  }
+  // GOOD: m := make(map[string]int, len(thousandItems))
+  ```
+
+- **Flag unnecessary pointer for small read-only structs**: Pointers add indirection and GC pressure for no benefit [Mistakes#95]
+  ```go
+  // BAD — 16-byte struct does not benefit from pointer
+  type Point struct{ X, Y float64 }
+  func distance(a, b *Point) float64 { /* ... */ }
+  // GOOD: func distance(a, b Point) float64 { /* ... */ }
+  ```
+
+- **Flag string/[]byte conversion in hot path**: Each conversion allocates a copy [Mistakes#46]
+  ```go
+  // BAD — allocates on every call in the loop
+  for _, s := range data {
+      hash.Write([]byte(s))
+  }
+  ```
+
+- **Flag defer in tight loops**: Defers stack until function returns, not iteration end [Mistakes#47]
+  ```go
+  // BAD — all defers stack until function exits
+  for _, path := range files {
+      f, _ := os.Open(path)
+      defer f.Close()
+      process(f)
+  }
+  // GOOD: wrap body in func() { f, _ := os.Open(path); defer f.Close(); process(f) }()
+  ```
+
+- **Flag range loop copying large values**: Range copies the element; use index or pointer [Mistakes#30]
+  ```go
+  // BAD — copies 4KB struct on every iteration
+  type BigStruct struct{ data [4096]byte }
+  for _, item := range bigSlice {
+      process(item)
+  }
+  // GOOD: for i := range bigSlice { process(&bigSlice[i]) }
+  ```
+
+> Cross-ref: See `/golang:tester` Section 6 for benchmarking these patterns.
+
+---
+
+## Section 6: Security
+
+### CHECK (things that must be present/correct)
+
+- **Verify user input is validated at boundary**: Validate and sanitize at the entry point, trust internally [LetsGo#11]
+  ```go
+  // GOOD — validate at handler, pass clean data inward
+  func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+      var input CreateRequest
+      if err := json.NewDecoder(r.Body).Decode(&input); err != nil { /* 400 */ }
+      if err := input.Validate(); err != nil { /* 422 */ }
+      h.service.Create(r.Context(), input.ToDomain())
+  }
+  ```
+
+- **Verify SQL uses parameterized queries**: Never interpolate user input into query strings [LetsGo#4]
+  ```go
+  // GOOD — parameterized, safe from injection
+  row := db.QueryRowContext(ctx, "SELECT name FROM users WHERE id = $1", userID)
+  ```
+
+- **Verify file paths are sanitized with filepath.Clean**: Prevent path traversal attacks [GoBook#1]
+  ```go
+  // GOOD — normalize and restrict to base directory
+  clean := filepath.Clean(userInput)
+  full := filepath.Join(baseDir, clean)
+  if !strings.HasPrefix(full, baseDir) { return ErrInvalidPath }
+  ```
+
+- **Verify TLS for external connections**: All outbound traffic to external services must use TLS [CloudNative#8]
+  ```go
+  // GOOD
+  srv := &http.Server{
+      TLSConfig: &tls.Config{MinVersion: tls.VersionTLS12},
+  }
+  ```
+
+- **Verify secrets are not in source or logs**: No hardcoded tokens, passwords, or API keys [CloudNative#8]
+  ```go
+  // GOOD — read from environment
+  apiKey := os.Getenv("API_KEY")
+  if apiKey == "" { return errors.New("API_KEY not set") }
+  // Never: log.Printf("connecting with key: %s", apiKey)
+  ```
+
+---
+
+## Section 7: Package & Project Structure
+
+### CHECK (things that must be present/correct)
+
+- **Verify no circular dependencies**: Package A imports B and B imports A will not compile [GoBook#10]
+  ```go
+  // GOOD — one-way dependency, use interfaces to invert
+  // package handler imports package service
+  // package service does NOT import package handler
+  // handler defines its own interface for what it needs from service
+  ```
+
+- **Verify internal/ is used for private packages**: Packages under internal/ are inaccessible outside the module [GoBook#10]
+  ```go
+  // GOOD project layout
+  // myapp/
+  //   cmd/myapp/main.go
+  //   internal/user/store.go    ← private to module
+  //   internal/order/service.go ← private to module
+  //   pkg/httputil/response.go  ← public API (if needed)
+  ```
+
+- **Verify one package per directory**: Multiple packages in one directory will not compile [EffectiveGo]
+  ```go
+  // GOOD
+  // internal/user/store.go     → package user
+  // internal/user/handler.go   → package user
+  // internal/order/service.go  → package order
+  ```
+
+- **Verify cmd/ is used for entry points**: Each binary gets its own subdirectory under cmd/ [CloudNative#2]
+  ```go
+  // GOOD
+  // cmd/api/main.go      ← HTTP server binary
+  // cmd/worker/main.go   ← background worker binary
+  // cmd/migrate/main.go  ← database migration binary
+  ```
+
+### FLAG (code smells to raise)
+
+- **Flag side-effect import without comment**: Blank imports must explain why the side effect is needed [CodeReview]
+  ```go
+  // BAD — no explanation for blank import
+  import _ "net/http/pprof"
+
+  // GOOD — comment explains the side effect
+  import _ "net/http/pprof" // Register pprof HTTP handlers
+  ```
 
 ---
 
 ## Quick Reference
 
-| Area | Key questions |
-|---|---|
-| Naming | MixedCaps? No stutter? Receiver abbreviation? |
-| Errors | %w intentional? errors.Is reachable? No silent discard? |
-| Context | First param? defer cancel()? No struct field? Unexported key? |
-| Goroutines | Exit condition? Shared state locked? Loop var captured? |
-| Interface | Consumer-side? ≤3 methods? Concrete return? |
-| Structure | internal/ correct? No globals? No circular deps? |
-| Resilience | Retry has jitter? Circuit breaker? Graceful shutdown? |
-| Performance | Pre-alloc? No + in loop? No defer in loop? |
-| Security | Parameterized SQL? html/template? ConstantTimeCompare? |
+| Area | CHECK | FLAG |
+|---|---|---|
+| Errors | Checked, wrapped, lowercase | errors.New in loop, panic in lib, log+return |
+| Concurrency | Exit path, sync, WaitGroup.Add order | Unbuffered no reader, copied sync, loop var |
+| Naming | MixedCaps, acronyms, -er suffix | Stuttering |
+| API Design | Consumer interfaces, options pattern | 5+ method interface, single impl |
+| Performance | — | String concat loop, no pre-alloc, defer loop |
+| Security | Input validated, parameterized SQL, TLS | — |
+| Structure | No cycles, internal/, cmd/ | Uncommented blank import |
