@@ -1,5 +1,5 @@
 ---
-name: go-tester
+name: tester
 description: "Use when writing, debugging, or improving Go tests — table-driven tests, benchmarks, fuzzing, mocks, integration tests, race detection, and coverage."
 user_invocable: true
 ---
@@ -10,7 +10,7 @@ Testing patterns for production Go services.
 
 Sources: [LearningGo] Ch.13, [Mistakes] #82-#84, Go 1.18+ fuzzing docs, testcontainers-go.
 
-> See also: `/go-coder` for interface design patterns (used in manual mocks). `/go-reviewer` for code review checklists.
+> See also: `/golang:coder` for interface design patterns (used in manual mocks). `/golang:reviewer` for code review checklists.
 
 ---
 
@@ -124,7 +124,7 @@ go run -race main.go
 
 Enable in CI. The race detector has ~5-10x slowdown — acceptable for test suites.
 
-> See also: `/go-reviewer` Concurrency Safety checklist for reviewing concurrent code.
+> See also: `/golang:reviewer` Concurrency Safety checklist for reviewing concurrent code.
 
 ---
 

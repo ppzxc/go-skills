@@ -1,5 +1,5 @@
 ---
-name: go-coder
+name: coder
 description: "Use when writing or refactoring Go production code — types, interfaces, error handling, concurrency, context, service structure, and resilience patterns."
 user_invocable: true
 ---
@@ -362,7 +362,7 @@ go func() { wg.Wait(); close(errCh) }()
 | Protecting shared state (map, counter, cache) | Transferring data ownership between goroutines |
 | Short critical sections | Signaling events, coordinating pipeline stages |
 
-> **Race detection** → See `/go-tester` Section 4. Always run `go test -race ./...`.
+> **Race detection** → See `/golang:tester` Section 4. Always run `go test -race ./...`.
 
 ### Goroutine Leak Prevention — [Mistakes] #63
 
@@ -666,7 +666,7 @@ func Load() Config {
 
 ---
 
-> **Testing patterns** → See `/go-tester` for table-driven tests, benchmarks, fuzzing, mocks, httptest, and coverage.
+> **Testing patterns** → See `/golang:tester` for table-driven tests, benchmarks, fuzzing, mocks, httptest, and coverage.
 
 ---
 

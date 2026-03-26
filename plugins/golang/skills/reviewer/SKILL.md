@@ -1,5 +1,5 @@
 ---
-name: go-reviewer
+name: reviewer
 description: "Use when reviewing Go code in pull requests or auditing Go codebases — checklists for error handling, concurrency safety, naming conventions, API design, and performance pitfalls."
 user_invocable: true
 ---
@@ -10,7 +10,7 @@ Code review checklists for production Go. Each item is a yes/no question — fla
 
 Sources: [Go CodeReviewComments](https://go.dev/wiki/CodeReviewComments), [go-concurrency checklist](https://github.com/code-review-checklists/go-concurrency), [Mistakes] #48-#73, [CloudNative].
 
-> See also: `/go-coder` for full pattern explanations. `/go-tester` for test review patterns.
+> See also: `/golang:coder` for full pattern explanations. `/golang:tester` for test review patterns.
 
 ---
 
@@ -103,7 +103,7 @@ Sources: [Go CodeReviewComments](https://go.dev/wiki/CodeReviewComments), [go-co
 - [ ] `sync.RWMutex` used for read-heavy, write-rarely workloads? (not always faster — benchmark)
 - [ ] `sync.Once` used for one-time initialization instead of `init()`?
 
-> See also: `/go-tester` Section 4 for running `go test -race ./...` to detect races automatically.
+> See also: `/golang:tester` Section 4 for running `go test -race ./...` to detect races automatically.
 
 ---
 
@@ -172,7 +172,7 @@ Sources: [Go CodeReviewComments](https://go.dev/wiki/CodeReviewComments), [go-co
 - [ ] Sub-slice returned from function copies data if the original is large?
 - [ ] No goroutines blocked forever (potential goroutine leak)?
 
-> See also: `/go-tester` Section 5 for benchmarking to measure actual impact.
+> See also: `/golang:tester` Section 5 for benchmarking to measure actual impact.
 
 ---
 
